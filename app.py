@@ -2,71 +2,58 @@
 """
 医疗问诊智能体
 全部功能：药品查询 / 体检解读 / 症状问诊 / 病历整理
-全部使用 LangChain + 通义千问 大模型
+全部使用 通义千问 大模型
 页面布局完全保留原版不变
 """
 import streamlit as st
 from datetime import datetime as dt
 from dotenv import load_dotenv
-
-# ========== 固定按你指定的导入格式 ==========
-from langchain_community.chat_models.tongyi import ChatTongyi
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import StrOutputParser
+import os
+import dashscope
+from dashscope import Generation
 
 # 加载环境变量
 load_dotenv()
+dashscope.api_key = os.getenv("DASHSCOPE_API_KEY")
 
-# 初始化通义千问
-llm = ChatTongyi(model="qwen-turbo", temperature=0.3)
-parser = StrOutputParser()
+# ---------------------- 通义千问统一调用函数 ----------------------
+def qwen_ask(system_prompt, user_prompt):
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_prompt}
+    ]
+    response = Generation.call(
+        model="qwen-turbo",
+        messages=messages,
+        temperature=0.3,
+        result_format='message'
+    )
+    if response.status_code == 200:
+        return response.output.choices[0].message.content
+    else:
+        return f"请求失败：{response.code}"
 
-# ---------------------- 各功能专属提示词模板 ----------------------
+# ---------------------- 各功能（完全保留你原来的逻辑） ----------------------
 # 1.药品查询
-drug_prompt = ChatPromptTemplate.from_messages([
-    ("system", "你是专业药师，给出药品通用名、适应症、用法用量、禁忌、不良反应、注意事项，条理清晰，不要虚假信息。"),
-    ("user", "帮我查询药品：{query}")
-])
-drug_chain = drug_prompt | llm | parser
+def get_drug_info(query):
+    system = "你是专业药师，给出药品通用名、适应症、用法用量、禁忌、不良反应、注意事项，条理清晰，不要虚假信息。"
+    return qwen_ask(system, f"帮我查询药品：{query}")
 
 # 2.体检报告解读
-report_prompt = ChatPromptTemplate.from_messages([
-    ("system", "你是专业体检解读医生，逐条分析指标高低、正常范围、临床意义、生活建议，语言通俗易懂，不做确诊，只做健康参考。"),
-    ("user", "帮我解读这份体检报告：{query}")
-])
-report_chain = report_prompt | llm | parser
+def get_report_analysis(query):
+    system = "你是专业体检解读医生，逐条分析指标高低、正常范围、临床意义、生活建议，语言通俗易懂，不做确诊，只做健康参考。"
+    return qwen_ask(system, f"帮我解读这份体检报告：{query}")
 
 # 3.症状问诊
-symptom_prompt = ChatPromptTemplate.from_messages([
-    ("system", "你是专业健康问诊助手，分析症状原因、给出居家处理建议、饮食作息注意事项，明确何时需要就医，不做疾病确诊。"),
-    ("user", "我的症状：{query}")
-])
-symptom_chain = symptom_prompt | llm | parser
+def get_symptom_answer(query):
+    system = "你是专业健康问诊助手，分析症状原因、给出居家处理建议、饮食作息注意事项，明确何时需要就医，不做疾病确诊。"
+    return qwen_ask(system, f"我的症状：{query}")
 
 # 4.病历整理
-record_prompt = ChatPromptTemplate.from_messages([
-    ("system", "你是门诊病历整理助手，根据姓名、年龄、症状、既往史，整理成规范简洁的门诊病历格式，条理工整。"),
-    ("user", "姓名：{name}，年龄：{age}，主要症状：{symptom}，既往史过敏史：{history}，帮我整理标准病历")
-])
-record_chain = record_prompt | llm | parser
-
-# ---------------------- 工具函数封装 ----------------------
-def get_drug_info(query):
-    return drug_chain.invoke({"query": query})
-
-def get_report_analysis(query):
-    return report_chain.invoke({"query": query})
-
-def get_symptom_answer(query):
-    return symptom_chain.invoke({"query": query})
-
 def get_medical_record(name, age, symptom, history):
-    return record_chain.invoke({
-        "name": name,
-        "age": age,
-        "symptom": symptom,
-        "history": history
-    })
+    system = "你是门诊病历整理助手，根据姓名、年龄、症状、既往史，整理成规范简洁的门诊病历格式，条理工整。"
+    user = f"姓名：{name}，年龄：{age}，主要症状：{symptom}，既往史过敏史：{history}，帮我整理标准病历"
+    return qwen_ask(system, user)
 
 # ===================== Streamlit 主界面（完全原版不变） =====================
 def main():

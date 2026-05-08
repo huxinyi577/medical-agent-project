@@ -1,5 +1,3 @@
-streamlit==1.32.2
-langchain==0.1.10
-langchain-community==0.0.25
-langchain-core==0.1.28
+streamlit
+dashscope
 python-dotenv
